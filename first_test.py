@@ -54,7 +54,7 @@ dLdU = dLdA.T @ X.T
 dLdB = np.sum(dLdA, axis=1, keepdims=True)
 
 mod.computeGrads()
-
+#
 
 
 Y = mod.synthTxt(15)
