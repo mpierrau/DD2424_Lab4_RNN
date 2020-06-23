@@ -53,7 +53,7 @@ dldW = dLdA @ H.T
 dLdU = dLdA.T @ X.T        
 dLdB = np.sum(dLdA, axis=1, keepdims=True)
 
-mod.computeGrads()
+#mod.computeGrads()
 #
 
 
