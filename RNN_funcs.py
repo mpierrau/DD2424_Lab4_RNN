@@ -3,37 +3,10 @@ import math
 from scipy.linalg import fractional_matrix_power
 import csv
 
-def relu(input_data):
-    """ ReLu activation function """
-    input_data[input_data < 0] = 0
-    return input_data
-
-def L2_cost(net,loss,lamda):
-    """ L2 regularization """
-    N = net.input.shape[1]
-
-    weights_sum = 0
-    weights = net.get_weights()
-
-    for W in weights:
-        Wsum = np.sum(W**2)
-        weights_sum += Wsum
-    
-    L2_reg = lamda * weights_sum / N
-    
-    cost = loss + L2_reg
-
-    return cost
-
-def cross_entropy_prime(Y,P):
-    """ Computes the error between Y and P. """
-    return -(Y-P)
-
-def cross_entropy(Y,P,nBatch,oneHotEnc=True):
+def cross_entropy(Y,P,oneHotEnc=True,avg=True):
     """ Computes average Cross Entropy between Y and P batchwise """
 
     N = np.shape(Y)[1]
-    batches = int(N/nBatch)
     
     if(oneHotEnc):
         entrFunc = lambda Y,P : np.trace(-np.log(np.dot(Y.T,P)))
@@ -41,16 +14,12 @@ def cross_entropy(Y,P,nBatch,oneHotEnc=True):
         entrFunc = lambda Y,P : np.trace(-np.dot(Y.T,np.log(P)))    
     
     entrSum = 0
-    for i in range(batches):
-        startIdx = i*nBatch
-        endIdx = startIdx + nBatch
-        
-        Ybatch = Y[:,startIdx:endIdx]
-        Pbatch = P[:,startIdx:endIdx]
 
-        entrSum += entrFunc(Ybatch,Pbatch)
+    for i in range(N):
+        entrSum += entrFunc(Y[:,[i]],P[:,[i]])
     
-    entrSum /= N
+    if avg:
+        entrSum /= N
 
     return entrSum
 
@@ -84,42 +53,6 @@ def setEta(epoch,n_s,etaMin, etaMax):
         etat = etaMax*(2-t/n_s) + etaMin*(t/n_s-1)
     
     return etat
-
-
-def he_init(in_dim,out_dim,seed=None):
-    """ He (Kaiming) initialization """
-    np.random.seed(seed)
-    mat = np.random.normal(0,1,(out_dim,in_dim))*math.sqrt(2./in_dim)
-    
-    return mat
-
-def xavier_init(in_dim,out_dim,seed=None):
-    """ Xavier initalization """
-    np.random.seed(seed)
-    mat = np.random.uniform(-1,1,(out_dim,in_dim))*math.sqrt(6./(in_dim + out_dim))
-
-    return mat
-
-def regular_init(in_dim,out_dim,seed=None):
-    """ Regular naive initialization """
-    np.random.seed(seed)
-    mat = np.random.normal(0,1/np.sqrt(in_dim),(out_dim,in_dim))
-
-    return mat
-
-
-def normal_init(in_dim,out_dim, *args):
-    """ Initialize vectors/matrices from normal dist with mu mean, sigma variance. 
-        Used in experiment to determine stability of BN vs. non-BN. """
-
-    mu = args[0]
-    sig = args[1]
-    seed = args[2]
-    np.random.seed(seed)
-    mat = np.random.normal(mu,sig,(out_dim,in_dim))
-
-    return mat
-
 
 def write_metrics(net,fileName):
     """ Saves loss, cost and accuracy to fileName.csv """

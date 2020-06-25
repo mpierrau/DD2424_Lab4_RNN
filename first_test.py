@@ -1,61 +1,32 @@
-import RNN_model_class
 from importlib import reload
-reload(RNN_model_class)
-from RNN_model_class import RNN_model
+
+import RNN_model_class
 import RNN_funcs
-from RNN_funcs import softMax
-from RNN_funcs import custom_choice
 import numpy as np
+import compute_grads_num
+import read_book
 
-mod = RNN_model_class.RNN_model('goblet_book.txt')
+reload(compute_grads_num)
+reload(RNN_funcs)
+reload(RNN_model_class)
+reload(read_book)
 
-mod.initPars()
+from RNN_model_class import RNN_model
+from RNN_funcs import softMax , cross_entropy
+from compute_grads_num import finite_diff , centered_diff , recurseGrads , relErr , testGrads
 
-Xchars = mod.data[:mod.seqLen]
-Ychars = mod.data[1:mod.seqLen+1]
-Xmat = np.zeros((mod.d,mod.seqLen))
-Ymat = np.zeros((mod.d,mod.seqLen))
-h0 = np.zeros((mod.m,1))
+bookData , bookChars = read_book.getData('goblet_book.txt')
 
-for i in range(len(Xchars)):
-    Xmat[:,[i]] = mod.charToVec[Xchars[i]]
-    Ymat[:,[i]] = mod.charToVec[Ychars[i]]
+mod = RNN_model(bookChars,m=100)
 
-A , H , P = mod.forwardProp(Xmat,h0)
+mod.fit(bookData, 10, 25, .1)
 
-X = Xmat
-Y = Ymat
+X , _ = mod.makeOneHot(bookData[700:702])
+y = mod.synthTxt(1000,np.zeros((mod.m,1)),X)
+print(mod.translateTxt(y))
 
-dLdO = -(Y.T-P.T).T
 
-dLdC = np.sum(dLdO,axis=1, keepdims=True)
-
-dLdV = dLdO @ H.T
-
-dHdA_tau = np.diag(1-np.tanh(A[:,-1]**2))
-
-dLdH = np.zeros((X.shape[1],mod.m))   
-dLdA = np.zeros(A.shape)
-dLdW = np.zeros(mod.pars["W"].shape)
-
-dLdH[-1] = dLdO[:,[-1]].T @ mod.pars["V"]
-dLdA[:,-1] = dLdH[-1].T*dHdA_tau
-
-for t in range(X.shape[1]-2,-1,-1):
-    dLdH[:,[t]] = dLdO[:,[t]] @ mod.pars["V"] + dLdA[:,[t+1]] @ mod.pars["W"]
-    dLdA[:,[t]] = dLdH[:,[t]] @ dLdA[:,[t]]
-
-tmpH = np.zeros_like(H)
-tmpH[:,1:] = H[:,:-1]
-
-dldW = dLdA @ H.T
-
-dLdU = dLdA.T @ X.T        
-dLdB = np.sum(dLdA, axis=1, keepdims=True)
-
-#mod.computeGrads()
-#
-
+"""
 
 Y = mod.synthTxt(15)
 mod.translateTxt(Y)
@@ -70,3 +41,4 @@ G[:,[0]]@H[:,[0]].T
 G[:,[1]]@H[:,[1]].T
 G[:,[2]]@H[:,[2]].T
 
+"""
