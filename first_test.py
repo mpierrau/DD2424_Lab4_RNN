@@ -1,44 +1,50 @@
-from importlib import reload
-
+import matplotlib.pyplot as plt
 import RNN_model_class
-import RNN_funcs
 import numpy as np
-import compute_grads_num
 import read_book
 
-reload(compute_grads_num)
-reload(RNN_funcs)
-reload(RNN_model_class)
-reload(read_book)
-
 from RNN_model_class import RNN_model
-from RNN_funcs import softMax , cross_entropy
-from compute_grads_num import finite_diff , centered_diff , recurseGrads , relErr , testGrads
+from compute_grads_num import testGrads
 
 bookData , bookChars = read_book.getData('goblet_book.txt')
 
 mod = RNN_model(bookChars,m=100)
 
-mod.fit(bookData, 10, 25, .1)
+# Run long training stint (~310 000 steps)
+mod.fit(bookData, 5, 25, .1)
+mod.fit(bookData, 2, 25, .1, resume=True)
 
-X , _ = mod.makeOneHot(bookData[700:702])
-y = mod.synthTxt(1000,np.zeros((mod.m,1)),X)
-print(mod.translateTxt(y))
+# Adjust smoothed loss
+sm_loss = [mod.loss[0]]
+alpha = 0.99
 
+for l in mod.loss[1:]:
+    sm_loss.append(np.average([sm_loss[-1],l],weights=[alpha,1-alpha]))
 
-"""
+# Plot loss
+steps = range(0,50*len(mod.loss),50)
+plt.plot(steps,mod.loss,alpha=0.3,label="Loss")
+plt.plot(steps,mod.smooth_loss,alpha=0.6,label="Smoothed loss alpha=0.999")
+plt.plot(steps,sm_loss,alpha=0.6,label="Smoothed loss alpha=0.99")
+plt.title("Evolution of loss")
+plt.xlabel("Step")
+plt.ylabel("Loss/Smoothed Loss")
+plt.legend()
+plt.show()
 
-Y = mod.synthTxt(15)
-mod.translateTxt(Y)
+# Check gradients
+X , Y = mod.makeOneHot(bookData[:26])
 
-# n=3
-# d=5
-# m=4
-G = np.array([[1,10,1],[2,20,1],[3,30,1],[4,40,1],[5,50,1]])
-H = np.array([[1,2,3],[2,3,4],[3,4,5],[4,5,6]])
+rnn = RNN_model(bookChars,m=100)
 
-G[:,[0]]@H[:,[0]].T
-G[:,[1]]@H[:,[1]].T
-G[:,[2]]@H[:,[2]].T
+errs1 , anNet1 , numNet1 = testGrads(rnn, X, Y)
 
-"""
+# Try to overfit model on small dataset
+rnn.fit(bookData[:100],5000,25,.1)
+
+# Produce synthesized text
+X0 = mod.charToVec['V']
+h0 = np.zeros((mod.m,1))
+print(mod.synthTxt(1000,h0,X0))
+print(bookData[:100])
+

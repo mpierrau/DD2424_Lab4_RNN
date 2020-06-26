@@ -1,9 +1,6 @@
 import numpy as np
-from tqdm import tqdm , trange
-from importlib import reload
-import read_book
-reload(read_book)
-from RNN_funcs import softMax , custom_choice , cross_entropy
+from tqdm import trange
+from RNN_funcs import softMax , cross_entropy
 from math import ceil
 
 class RNN_model:
@@ -23,12 +20,10 @@ class RNN_model:
 
         self.pars = {}
         self.grads = {}
-        self.mPars = {   "V" : np.zeros((self.k , self.m)),
-                        "W" : np.zeros((self.m , self.m)),
-                        "U" : np.zeros((self.m , self.k)),
-                        "b" : np.zeros((self.m , 1)),
-                        "c" : np.zeros((self.k , 1)) }
+        self.mPars = {}
+
         self.loss = []
+        self.smooth_loss = []
         self.quotes = []
 
         self.seed = seed
@@ -48,9 +43,7 @@ class RNN_model:
 
         for t in range(n):
             ht , at , pt = self.forwardPass(ht,X[:,[t]])
-            #print("Shape of  ht: ", np.shape(ht))
-            #print("Shape of at: ", np.shape(at))
-            #print("Shape of pt: ", np.shape(pt))
+            
             A[:,[t]] = at
             H[:,[t]] = ht
             P[:,[t]] = pt
@@ -61,9 +54,9 @@ class RNN_model:
     def forwardPass(self, hPrev, xt):
         """ h0 and m0 have dim m x 1 """ 
         
-        at = self.pars["W"] @ hPrev + self.pars["U"] @ xt + self.pars["b"]
+        at = self.pars["W"].dot(hPrev) + self.pars["U"].dot(xt) + self.pars["b"]
         ht = np.tanh(at)
-        ot = self.pars["V"] @ ht + self.pars["c"]
+        ot = self.pars["V"].dot(ht) + self.pars["c"]
         pt = softMax(ot)
 
         return ht , at , pt
@@ -80,15 +73,15 @@ class RNN_model:
 
         dLdO = -(Y-P).T
         
-        dLdH = np.zeros((X.shape[1],self.m))   
+        dLdH = np.zeros((H.shape[1],H.shape[0]))   
         dLdA = np.zeros(A.shape)
         
-        dLdH[-1] = dLdO[-1] @ self.pars["V"]
-        dLdA[:,-1] = dLdH[-1] * (1-np.tanh(A[:,-1])**2)
+        dLdH[-1] = dLdO[-1].dot(self.pars["V"])
+        dLdA[:,-1] = dLdH[-1] * (1-np.tanh(A[:,-1].T)**2)
 
         for t in range(n-2,-1,-1):
-            dLdH[t] = dLdO[t] @ self.pars["V"] + dLdA[:,t+1] @ self.pars["W"]
-            dLdA[:,t] = dLdH[t] * (1 - np.tanh(A[:,t])**2)
+            dLdH[t] = dLdO[t].dot(self.pars["V"]) + dLdA[:,[t+1]].T.dot(self.pars["W"])
+            dLdA[:,t] = dLdH[t] * (1 - np.tanh(A[:,t].T)**2)
         
         tmpH = np.zeros_like(H)
         tmpH[:,1:] = H[:,:-1]       # the first column of this tmpH contains h_0 and the last has h_(tau-1)
@@ -108,14 +101,17 @@ class RNN_model:
 
         self.clipGrads()
 
-    def updatePars(self,eta,eps=np.finfo(float).eps):
+
+    def updatePars(self,eta,eps=1e-8):
         for k in self.mPars.keys():
             self.mPars[k] += (self.grads[k]**2)
             self.pars[k] -= eta / ( np.sqrt(self.mPars[k] + eps) ) * self.grads[k]
-        
+
+
     def clipGrads(self,lim=5):
         for k in self.grads.keys():
             self.grads[k] = np.maximum( np.minimum( self.grads[k] , lim ), (-lim) )
+
 
     def initPars(self):
         self.pars["b"] = np.zeros((self.m,1))
@@ -125,12 +121,13 @@ class RNN_model:
         self.pars["W"] = np.random.normal(self.mu,self.sig,(self.m,self.m))
         self.pars["V"] = np.random.normal(self.mu,self.sig,(self.k,self.m))
 
+        self.mPars = {k: np.zeros(np.shape(self.pars[k])) for k in self.pars.keys()}
 
     def synthTxt(self,n,h0,x0):
         
         H = h0
         X = x0
-        seq = ''
+        seq = self.indToChar[np.argmax(x0)]
         for _ in range(n):
             H , _ , P = self.forwardPass(H , X)
             xIdx = np.random.choice(self.k,p=P.flatten())
@@ -150,14 +147,13 @@ class RNN_model:
 
         if not(resume):
             self.it = 0
-            self.smooth_loss = 0
 
         for _ in trange(nEpochs):
             e = 0
             hprev = np.zeros((self.m,1))
 
-            while(e < n - seqLen - 1):
-                X , Y = self.makeOneHot(self.data[e:e + seqLen])
+            while(e < n - seqLen - 2):
+                X , Y = self.makeOneHot(self.data[e:e + seqLen + 1])
                 
                 e += seqLen
 
@@ -172,11 +168,15 @@ class RNN_model:
 
                 if self.it % rec1 == 0:
                     # save smooth loss
-                    self.smooth_loss = loss_t if (self.smooth_loss == 0) else np.average([self.smooth_loss,loss_t],weights=[.999,.001])
-                    self.loss.append(self.smooth_loss)
+                    self.loss.append(loss_t)
+
+                    if len(self.smooth_loss) == 0:    
+                        self.smooth_loss.append(loss_t)
+                    else:
+                        self.smooth_loss.append(np.average([self.smooth_loss[-1],loss_t],weights=[.999,.001]))
 
                 if self.it % rec2 == 0:
-                    print("Smooth loss at iteration {0} : {1}".format(self.it,self.smooth_loss))
+                    print("Smooth loss at iteration {0} : {1}".format(self.it,self.smooth_loss[-1]))
                 if self.it % rec3 == 0:
                     txt = self.synthTxt(200,hprev,X[:,[0]])
                     self.quotes.append(txt)

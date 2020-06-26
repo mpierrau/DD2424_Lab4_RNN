@@ -3,32 +3,42 @@ import numpy as np
 from tqdm import trange , tqdm
 import copy
 
-def testGrads(net, X, Y, h=1e-4, eps=1e-7, fast=False):
+def testGrads(net, X, Y, h=1e-4, eps=1e-7, fast=False, keys=None):
+    
+    if keys is None:
+        keys = net.pars.keys()
+    
     testNet = copy.deepcopy(net)
-    # TODO : include burnin - for this you need update functions in place
 
-    A , H , P = net.forwardProp(X)
+    # TODO : include burnin - for this you need update functions in place
+    
+    h0 = np.zeros((testNet.m,1))
+
+    A , H , P = net.forwardProp(X,h0)
     net.computeGradients(X,Y,A,H,P)
     
-    anGrads = net.grads
+    anGrads = {k : net.grads[k] for k in keys}
 
-    numGrads = computeGradsNum(testNet, X, Y, h, fast=fast)
+    numGrads = computeGradsNum(testNet, X, Y, h, fast=fast, keys=keys)
 
-    relErrs = {k : relErr(anGrads[k],numGrads[k], eps=eps) for k in anGrads.keys()}
+    relErrs = {k : relErr(anGrads[k],numGrads[k], eps=eps) for k in keys}
 
     return relErrs , net , testNet
 
 
-def computeGradsNum(net, X, Y, h=1e-4, fast=False):
+def computeGradsNum(net, X, Y, h=1e-4, fast=False, keys=None):
         """ Uses finite or centered difference approx depending on fast boolean 
             Good practice: let net burn in a few steps before computing grads"""
+        if keys is None:
+            keys = net.pars
         
         numGrads = {}
 
         if fast:
             print("Using finite difference method")
+            h0 = np.zeros((net.m,1))
 
-            _ , _ , P = net.forwardProp(X)
+            _ , _ , P = net.forwardProp(X,h0)
             c = net.computeLoss(P,Y)
 
             approx_func = lambda net, key, idxTup : finite_diff(net,key,idxTup,X,Y,c,h)
@@ -37,7 +47,7 @@ def computeGradsNum(net, X, Y, h=1e-4, fast=False):
 
             approx_func = lambda net, key, idxTup : centered_diff(net,key,idxTup,X,Y,h)
         
-        for key in tqdm(net.pars):
+        for key in tqdm(keys):
             numGrads[key] = recurseGrads(net,key,approx_func)
 
         return numGrads
@@ -73,10 +83,11 @@ def recurseGrads(net,key,approx_func):
 
 def finite_diff(net,key,idx,X,Y,c,h):
     assert(type(net.pars[key][idx]) is np.float64)
+    h0 = np.zeros((net.m,1))
 
     net.pars[key][idx] += h
 
-    _ , _ , P = net.forwardProp(X)
+    _ , _ , P = net.forwardProp(X,h0)
     c2 = net.computeLoss(P,Y)
 
     grad_approx = (c2-c) / h
@@ -91,14 +102,16 @@ def finite_diff(net,key,idx,X,Y,c,h):
 
 def centered_diff(net,key,idx,X,Y,h):
     assert(type(net.pars[key][idx]) is np.float64)
+    h0 = np.zeros((net.m,1))
+
     net.pars[key][idx] -= h       
 
-    _ , _ , P1 = net.forwardProp(X)
+    _ , _ , P1 = net.forwardProp(X,h0)
     c1 = net.computeLoss(P1,Y)
     
     net.pars[key][idx] += 2*h
     
-    _ , _ , P2 = net.forwardProp(X)
+    _ , _ , P2 = net.forwardProp(X,h0)
     c2 = net.computeLoss(P2,Y)
 
     grad_approx = (c2 - c1) / (2 * h)

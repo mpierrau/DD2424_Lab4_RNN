@@ -13,11 +13,8 @@ def cross_entropy(Y,P,oneHotEnc=True,avg=True):
     else:
         entrFunc = lambda Y,P : np.trace(-np.dot(Y.T,np.log(P)))    
     
-    entrSum = 0
+    entrSum = entrFunc(Y,P)
 
-    for i in range(N):
-        entrSum += entrFunc(Y[:,[i]],P[:,[i]])
-    
     if avg:
         entrSum /= N
 
