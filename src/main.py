@@ -1,39 +1,44 @@
 import matplotlib.pyplot as plt
-import RNN_model_class
 import numpy as np
-import read_book
-
+from read_book import getData
 from RNN_model_class import RNN_model
 from compute_grads_num import testGrads
 
 # Load data
-bookData , bookChars = read_book.getData('data/goblet_book.txt')
+bookData , bookChars = getData('data/goblet_book.txt')
+
+# Create network
+RNN = RNN_model(bookChars, m = 100)
 
 # Check gradients
-mod = RNN_model(bookChars,m=100)
-
-X , Y = mod.makeOneHot(bookData[:26])
-errs , anNet , numNet = testGrads(mod, X, Y)
+X , Y = RNN.makeOneHot(bookData[:26])
+errs , anNet , numNet = testGrads(RNN, X, Y)
 errs
 
 # Try to overfit model on small dataset
-mod.fit(bookData[:100],5000,25,.1)
+RNN.fit(bookData[:100], 5000, 25, .1)
 
 # Produce synthesized text
-X0 = mod.charToVec['\t']
-h0 = np.zeros((mod.m,1))
-print(mod.synthTxt(100,h0,X0))
+X0 = RNN.charToVec['\t']
+h0 = np.zeros((RNN.m, 1))
+print(RNN.synthTxt(100, h0, X0))
 print(bookData[:100])
 
+# Run long-ish training stint (~120 000 steps)
+RNN.fit(inputData=bookData, 
+        nEpochs = 3, 
+        seqLen = 25, 
+        eta = .1,
+        recLossEvery = 50,
+        printLossEvery = 5000,
+        printQuoteEvery = 5000)
 
-# Run long training stint (~310 000 steps)
-mod.fit(bookData, 2, 25, .1, verbose=True)
-mod.fit(bookData, 3, 25, .1, resume=True, verbose=False)
+# RNN.fit(bookData, 4, 25, .1, resume=True, verbose=False)
 
 # Plot loss
-steps = range(0,50*len(mod.loss),50)
-plt.plot(steps,mod.loss,alpha=0.3,label="Loss")
-plt.plot(steps,mod.smoothLoss,alpha=0.6,label="Smoothed loss alpha=0.99")
+steps = range(0, 50*len(RNN.loss), 50)
+plt.plot(steps, RNN.loss, alpha = 0.3, label = "Loss")
+plt.plot(steps, RNN.smoothLoss, alpha = 0.6, label = "Smoothed loss alpha=0.99")
 plt.title("Evolution of loss")
 plt.xlabel("Step")
 plt.ylabel("Loss/Smoothed Loss")
@@ -41,8 +46,6 @@ plt.legend()
 plt.show()
 
 # Produce synthesized text of length 1000
-X0 = mod.charToVec['\t']
-h0 = np.zeros((mod.m,1))
-print(mod.synthTxt(1000,h0,X0))
+print(RNN.synthTxt(1000))
 
 

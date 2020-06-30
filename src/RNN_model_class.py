@@ -15,9 +15,6 @@ class RNN_model:
                     
         m           = dimension of hidden state
                     - type : int > 0
-            
-        eta         = learning rate
-                    - type : float > 0
 
         mu          = hyperparameter for parameter initialization
                     - type : float
@@ -29,7 +26,7 @@ class RNN_model:
                     - type : int
         """
 
-    def __init__(self, charList, m = 100, eta = .1, mu = 0, sig = .01, seed=None):
+    def __init__(self, charList, m = 100, mu = 0, sig = .01, seed=None):
 
         self.chars = charList
         self.d = len(charList)
@@ -37,7 +34,6 @@ class RNN_model:
         self.m = m
         self.k = self.d     # This is not always the case. Only when indim = outdim.
 
-        self.eta = eta
 
         self.mu = mu
         self.sig = sig
@@ -154,16 +150,16 @@ class RNN_model:
         return loss
 
 
-    def fit(self,   bookData, nEpochs, seqLen, eta, 
+    def fit(self,   inputData, nEpochs, seqLen, eta, 
                     recLossEvery=50, printLossEvery=5000, printQuoteEvery=5000, 
                     incr=None, overlap=False, resume=False, save=True, verbose=True):
 
         """ Fit model to data.
         
-            bookData        = the entire text to be trained on. In this case the entire book. 
+            inputData        = the entire text to be trained on. In this case the entire book. 
                             - type : string 
                         
-            nEpochs         = number of epochs to train the network. One epoch = one complete "readthrough" of bookData.
+            nEpochs         = number of epochs to train the network. One epoch = one complete "readthrough" of inputData.
                             - type : int
                         
             seqLen          = length of each character sequence to be used in minibatch. 
@@ -202,8 +198,10 @@ class RNN_model:
             verbose         = if true, print some stuff, if false, print no stuff.
                             - type : boolean
             """
+        
+        self.eta = eta
 
-        self.data = bookData
+        self.data = inputData
         n = len(self.data)
         
         if not(overlap):
@@ -280,7 +278,7 @@ class RNN_model:
         return Xmat , Ymat
 
         
-    def synthTxt(self,n,h0,x0):
+    def synthTxt(self,n,h0=None,x0=None):
         """ Synthesizes (generates) text snippet of length n using hidden state h0 and initial character x0.
         
             n   = length of sequence to be generated
@@ -292,14 +290,24 @@ class RNN_model:
             x0  = one hot encoding of initial character 
                 - type : numpy array of dim (self.k , 1) """
         
+        if h0 is None:
+            h0 = np.zeros((self.m,1))
+        
+        if x0 is None:
+            x0 = self.charToVec('\n')
+
         H = h0
         X = x0
+
         seq = self.indToChar[np.argmax(x0)]
+        
         for _ in range(n):
             H , _ , P = self.forwardPass(H , X)
+            
             xIdx = np.random.choice(self.k,p=P.flatten())
+            
             X = self.indToVec[xIdx]
-            char = self.indToChar[xIdx]
-            seq += char
+
+            seq += self.indToChar[xIdx]
 
         return seq
