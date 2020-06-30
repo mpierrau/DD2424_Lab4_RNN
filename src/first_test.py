@@ -6,14 +6,32 @@ import read_book
 from RNN_model_class import RNN_model
 from compute_grads_num import testGrads
 
+# Load data
 bookData , bookChars = read_book.getData('goblet_book.txt')
 
+# Check gradients
 mod = RNN_model(bookChars,m=100)
 
-# Run long training stint (~310 000 steps)
-mod.fit(bookData, 5, 25, .1)
-mod.fit(bookData, 2, 25, .1, resume=True)
+X , Y = mod.makeOneHot(bookData[:26])
 
+errs , anNet , numNet = testGrads(mod, X, Y)
+errs
+
+# Try to overfit model on small dataset
+mod.fit(bookData[:100],5000,25,.1)
+
+# Produce synthesized text
+X0 = mod.charToVec['V']
+h0 = np.zeros((mod.m,1))
+print(mod.synthTxt(100,h0,X0))
+print(bookData[:100])
+
+
+# Run long training stint (~310 000 steps)
+mod.fit(bookData, 7, 25, .1, verbose=False)
+mod.fit(bookData, 3, 25, .1, resume=True, verbose=False)
+mod.fit(bookData, 5, 25, .1, resume=True, verbose=False)
+mod.fit(bookData, 5, 25, .05, resume=True, verbose=False)
 # Adjust smoothed loss
 sm_loss = [mod.loss[0]]
 alpha = 0.99
@@ -32,19 +50,10 @@ plt.ylabel("Loss/Smoothed Loss")
 plt.legend()
 plt.show()
 
-# Check gradients
-X , Y = mod.makeOneHot(bookData[:26])
-
-rnn = RNN_model(bookChars,m=100)
-
-errs1 , anNet1 , numNet1 = testGrads(rnn, X, Y)
-
-# Try to overfit model on small dataset
-rnn.fit(bookData[:100],5000,25,.1)
-
-# Produce synthesized text
-X0 = mod.charToVec['V']
+# Produce synthesized text of length 1000
+X0 = mod.charToVec['H']
 h0 = np.zeros((mod.m,1))
 print(mod.synthTxt(1000,h0,X0))
 print(bookData[:100])
+
 

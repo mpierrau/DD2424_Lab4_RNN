@@ -4,13 +4,35 @@ from tqdm import trange , tqdm
 import copy
 
 def testGrads(net, X, Y, h=1e-4, eps=1e-7, fast=False, keys=None):
+    """ Compares analytical gradients of parameters against numerical approximations 
     
+        net     = RNN model 
+                - type  : RNN_model class object 
+
+        X       = one hot encoded book data
+                - type : numpy array
+
+        Y       = one hot encoded labels for X
+                - type : numpy array
+
+        h       = stepsize for numerical approximations
+                - type : float 
+            
+        eps     = value to avoid zero division in relative error computation. Some small value.
+                - type : float    
+            
+        fast    = determines whether to use centered difference or finite difference formula.
+                - type : boolean
+
+        keys    = list of keys for parameters to compare, for example ["U","W","b"]. If None then all parameters in model are checked.
+                - type : list of strings
+
+            """
+
     if keys is None:
         keys = net.pars.keys()
     
     testNet = copy.deepcopy(net)
-
-    # TODO : include burnin - for this you need update functions in place
     
     h0 = np.zeros((testNet.m,1))
 
@@ -27,8 +49,7 @@ def testGrads(net, X, Y, h=1e-4, eps=1e-7, fast=False, keys=None):
 
 
 def computeGradsNum(net, X, Y, h=1e-4, fast=False, keys=None):
-        """ Uses finite or centered difference approx depending on fast boolean 
-            Good practice: let net burn in a few steps before computing grads"""
+
         if keys is None:
             keys = net.pars
         
@@ -50,10 +71,18 @@ def computeGradsNum(net, X, Y, h=1e-4, fast=False, keys=None):
         for key in tqdm(keys):
             numGrads[key] = recurseGrads(net,key,approx_func)
 
+
         return numGrads
 
 
 def recurseGrads(net,key,approx_func):
+    """ Dynamic for-loop that uses recursion to dynamically adapt the computation to
+        the dimension of the network parameters to be estimated. 
+        
+        approx_func     = function that approximates gradient of net.pars[key][idx]) 
+                          after changing net.pars[key][idx] by some increment h. 
+                        - type : function(net, key, idx) -> float """
+
     nDims = len(np.shape(net.pars[key]))
     grad = np.zeros(np.shape(net.pars[key]))
 
@@ -71,9 +100,7 @@ def recurseGrads(net,key,approx_func):
             del thisIdx[thisDim]
         else:
             thisIdx = tuple(thisIdx)
-            #print("Updated grad[%s] from %f to" % (thisIdx,grad[thisIdx]))
             grad[thisIdx] = approx_func(net, key, thisIdx)
-            #print(grad[thisIdx])
     
     recFunc([],0)
 
@@ -126,8 +153,9 @@ def centered_diff(net,key,idx,X,Y,h):
 
 
 def relErr(Wan,Wnum,eps=1e-7):
-    # Computes mean relative error between Jacobians Wan and Wnum
+    """ Computes mean relative error between arrays Wan and Wnum """
     assert(np.shape(Wan) == np.shape(Wnum))
+    
     relErr = np.mean(np.abs(Wan - Wnum)/np.maximum(eps,(np.abs(Wan) + np.abs(Wnum))))
 
     return relErr
