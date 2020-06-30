@@ -1,2 +1,2 @@
 # DD2424_Lab4_RNN
-RNN for predicting text from Harry Potter and The Goblet of Fire 
+Training a vanilla RNN for synthesizing text from Harry Potter and The Goblet of Fire using AdaGrad. See PDF for more information.
